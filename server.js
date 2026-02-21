@@ -55,7 +55,9 @@ Don't send the original response as a chabot, only send as VizGPT would have hyp
 
 `;
 
-const hf = new HfInference(process.env.HF_TOKEN);
+const hf = new HfInference(process.env.HF_TOKEN, {
+  endpoint: "https://router.huggingface.co"
+});
 const AI_MODEL = "NousResearch/Hermes-3-Llama-3.1-405B";
 
 // =============================
@@ -172,3 +174,4 @@ app.listen(PORT, () => {
 // AUTO START BOT
 // =============================
 startBot();
+

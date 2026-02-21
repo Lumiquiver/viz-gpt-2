@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VizGPT Control Panel</title>
+<style>
+    :root {
+        --bg: #0f172a;
+        --panel: #1e293b;
+        --text: #f8fafc;
+        --accent: #3b82f6;
+        --accent-hover: #2563eb;
+        --success: #10b981;
+        --warn: #facc15;
+        --error: #ef4444;
+        --border: #334155;
+    }
+
+    body {
+        font-family: system-ui, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        margin: 0;
+    }
+
+    .dashboard {
+        background: var(--panel);
+        width: 100%;
+        max-width: 500px;
+        padding: 30px;
+        border-radius: 12px;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+        border: 1px solid var(--border);
+        text-align: center;
+    }
+
+    h1 { margin-bottom: 20px; }
+
+    .status {
+        display: inline-block;
+        padding: 6px 12px;
+        border-radius: 20px;
+        border: 1px solid var(--success);
+        color: var(--success);
+        font-weight: 600;
+        margin-bottom: 20px;
+    }
+
+    .status.offline { border-color: var(--error); color: var(--error); }
+    .status.stopped { border-color: var(--warn); color: var(--warn); }
+
+    button {
+        background: var(--accent);
+        color: white;
+        border: none;
+        padding: 10px 24px;
+        border-radius: 6px;
+        font-size: 1rem;
+        font-weight: 600;
+        cursor: pointer;
+        margin: 10px;
+        transition: background 0.2s;
+    }
+
+    button:hover { background: var(--accent-hover); }
+</style>
+</head>
+<body>
+
+<div class="dashboard">
+    <h1>VizGPT Control Panel</h1>
+    <div id="status" class="status stopped">Stopped</div>
+    <div>
+        <button onclick="startBot()">Start Bot</button>
+        <button onclick="stopBot()">Stop Bot</button>
+    </div>
+</div>
+
+<script>
+async function updateStatus() {
+    try {
+        const res = await fetch('/api/status');
+        const data = await res.json();
+        const statusEl = document.getElementById('status');
+
+        if (!data.botRunning) {
+            statusEl.className = 'status stopped';
+            statusEl.innerText = data.botStatus;
+        } else if (data.botStatus === "Online") {
+            statusEl.className = 'status';
+            statusEl.innerText = "Online";
+        } else {
+            statusEl.className = 'status offline';
+            statusEl.innerText = data.botStatus;
+        }
+    } catch(err) {
+        console.error(err);
+        const statusEl = document.getElementById('status');
+        statusEl.className = 'status offline';
+        statusEl.innerText = "Error";
+    }
+}
+
+async function startBot() {
+    const btns = document.querySelectorAll('button');
+    btns.forEach(b => b.disabled = true);
+    try {
+        await fetch('/api/start', { method: 'POST' });
+        await updateStatus();
+    } finally {
+        btns.forEach(b => b.disabled = false);
+    }
+}
+
+async function stopBot() {
+    const btns = document.querySelectorAll('button');
+    btns.forEach(b => b.disabled = true);
+    try {
+        await fetch('/api/stop', { method: 'POST' });
+        await updateStatus();
+    } finally {
+        btns.forEach(b => b.disabled = false);
+    }
+}
+
+// Heartbeat every 5 seconds
+setInterval(async () => {
+    await fetch('/api/heartbeat');
+    updateStatus();
+}, 5000);
+
+// Initial status load
+updateStatus();
+</script>
+
+</body>
+</html>

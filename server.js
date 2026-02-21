@@ -1,4 +1,6 @@
-// server.js
+// ==============================
+// VizGPT - Final Production Server
+// ==============================
 
 if (process.env.NODE_ENV !== 'production') {
   require('dotenv').config();
@@ -6,20 +8,19 @@ if (process.env.NODE_ENV !== 'production') {
 
 const express = require('express');
 const { Client, GatewayIntentBits } = require('discord.js');
-const { HfInference } = require('@huggingface/inference');
 
+// Node 18+ has native fetch (Render uses Node 22+)
 const app = express();
 app.use(express.json());
 app.use(express.static('public'));
 
 
-// =============================
+// ==============================
 // BOT STATE
-// =============================
+// ==============================
 let botRunning = false;
 let botStatus = "Stopped";
-let client = null; // DECLARED ONLY ONCE HERE
-
+let client = null;
 
 // Hardcoded multiline system prompt
 const SYSTEM_PROMPT = `
@@ -55,14 +56,10 @@ Don't send the original response as a chabot, only send as VizGPT would have hyp
 
 `;
 
-const hf = new HfInference(process.env.HF_TOKEN, {
-  endpoint: "https://router.huggingface.co"
-});
-const AI_MODEL = "NousResearch/Hermes-3-Llama-3.1-405B";
 
-// =============================
-// START BOT
-// =============================
+// ==============================
+// START BOT FUNCTION
+// ==============================
 async function startBot() {
   if (botRunning) return;
 
@@ -96,22 +93,42 @@ async function startBot() {
     try {
       await message.channel.sendTyping();
 
-      const response = await hf.chatCompletion({
-        model: AI_MODEL,
-        messages: [
-          { role: "system", content: SYSTEM_PROMPT },
-          { role: "user", content: userPrompt }
-        ],
-        max_tokens: 300,
-        temperature: 0.7
-      });
+      // ==============================
+      // NEW HF ROUTER API CALL
+      // ==============================
+      const response = await fetch(
+        "https://router.huggingface.co/v1/chat/completions",
+        {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${process.env.HF_TOKEN}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            model: "NousResearch/Hermes-3-Llama-3.1-405B",
+            messages: [
+              { role: "system", content: SYSTEM_PROMPT },
+              { role: "user", content: userPrompt }
+            ],
+            max_tokens: 300,
+            temperature: 0.7
+          })
+        }
+      );
 
-      const replyText = response.choices[0].message.content;
+      const data = await response.json();
+
+      if (!response.ok) {
+        console.error("HF ERROR:", data);
+        return message.reply("⚠️ AI service error.");
+      }
+
+      const replyText = data.choices?.[0]?.message?.content || "No response.";
       await message.reply(replyText);
 
     } catch (err) {
       console.error("HF API Error:", err);
-      await message.reply("⚠️ AI service error.");
+      await message.reply("⚠️ AI service unavailable.");
     }
   });
 
@@ -125,9 +142,9 @@ async function startBot() {
 }
 
 
-// =============================
-// STOP BOT
-// =============================
+// ==============================
+// STOP BOT FUNCTION
+// ==============================
 async function stopBot() {
   if (!botRunning || !client) return;
 
@@ -138,9 +155,9 @@ async function stopBot() {
 }
 
 
-// =============================
+// ==============================
 // API ROUTES
-// =============================
+// ==============================
 app.get('/api/status', (req, res) => {
   res.json({ botRunning, botStatus });
 });
@@ -160,9 +177,9 @@ app.get('/api/heartbeat', (req, res) => {
 });
 
 
-// =============================
+// ==============================
 // START EXPRESS SERVER
-// =============================
+// ==============================
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
@@ -170,8 +187,7 @@ app.listen(PORT, () => {
 });
 
 
-// =============================
+// ==============================
 // AUTO START BOT
-// =============================
+// ==============================
 startBot();
-

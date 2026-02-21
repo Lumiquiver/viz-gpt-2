@@ -105,7 +105,7 @@ async function startBot() {
             "Content-Type": "application/json"
           },
           body: JSON.stringify({
-            model: "bartowski/Hermes-3-Llama-3.1-405B-GGUF",
+            model: "NousResearch/Hermes-3-Llama-3.1-8B",
             messages: [
               { role: "system", content: SYSTEM_PROMPT },
               { role: "user", content: userPrompt }
@@ -191,4 +191,5 @@ app.listen(PORT, () => {
 // AUTO START BOT
 // ==============================
 startBot();
+
 

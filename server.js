@@ -1,5 +1,5 @@
 // ==============================
-// VizGPT - Final Production Server
+// VizGPT - Production Server
 // ==============================
 
 if (process.env.NODE_ENV !== 'production') {
@@ -9,7 +9,6 @@ if (process.env.NODE_ENV !== 'production') {
 const express = require('express');
 const { Client, GatewayIntentBits } = require('discord.js');
 
-// Node 18+ has native fetch (Render uses Node 22+)
 const app = express();
 app.use(express.json());
 app.use(express.static('public'));
@@ -58,7 +57,39 @@ Don't send the original response as a chabot, only send as VizGPT would have hyp
 
 
 // ==============================
-// START BOT FUNCTION
+// MEMORY SYSTEM (Per Channel)
+// ==============================
+const MAX_MEMORY = 10;
+const messageHistory = {}; // { channelId: [ {role, content}, ... ] }
+
+function getHistory(channelId) {
+  if (!messageHistory[channelId]) {
+    messageHistory[channelId] = [
+      { role: "system", content: SYSTEM_PROMPT }
+    ];
+  }
+  return messageHistory[channelId];
+}
+
+function updateHistory(channelId, role, content) {
+  const history = getHistory(channelId);
+  history.push({ role, content });
+
+  // Keep system prompt + last MAX_MEMORY messages
+  if (history.length > MAX_MEMORY + 1) {
+    history.splice(1, 1);
+  }
+}
+
+function clearHistory(channelId) {
+  messageHistory[channelId] = [
+    { role: "system", content: SYSTEM_PROMPT }
+  ];
+}
+
+
+// ==============================
+// START BOT
 // ==============================
 async function startBot() {
   if (botRunning) return;
@@ -80,22 +111,40 @@ async function startBot() {
   client.on('messageCreate', async (message) => {
     if (!botRunning) return;
     if (message.author.bot) return;
+
+    // ==========================
+    // CLEAR MEMORY COMMAND
+    // ==========================
+    if (message.content === "!clear") {
+      clearHistory(message.channel.id);
+      return message.reply("🧹 Memory cleared!");
+    }
+
+    // ==========================
+    // MENTION CHECK
+    // ==========================
     if (!message.mentions.has(client.user)) return;
 
     const userPrompt = message.content
       .replace(`<@${client.user.id}>`, '')
+      .replace(`<@!${client.user.id}>`, '')
       .trim();
 
     if (!userPrompt) {
-      return message.reply("Yes? How can I help you?");
+      return message.reply("How can I help you?");
     }
 
     try {
       await message.channel.sendTyping();
 
-      // ==============================
-      // NEW HF ROUTER API CALL
-      // ==============================
+      const channelId = message.channel.id;
+
+      // Add user message to memory
+      updateHistory(channelId, "user", userPrompt);
+
+      // ==========================
+      // HUGGING FACE ROUTER CALL
+      // ==========================
       const response = await fetch(
         "https://router.huggingface.co/v1/chat/completions",
         {
@@ -106,10 +155,7 @@ async function startBot() {
           },
           body: JSON.stringify({
             model: "NousResearch/Hermes-2-Pro-Llama-3-8B",
-            messages: [
-              { role: "system", content: SYSTEM_PROMPT },
-              { role: "user", content: userPrompt }
-            ],
+            messages: getHistory(channelId),
             max_tokens: 300,
             temperature: 0.7
           })
@@ -124,7 +170,20 @@ async function startBot() {
       }
 
       const replyText = data.choices?.[0]?.message?.content || "No response.";
-      await message.reply(replyText);
+
+      // Add assistant reply to memory
+      updateHistory(channelId, "assistant", replyText);
+
+      // ==========================
+      // DISCORD 2000 CHAR LIMIT
+      // ==========================
+      if (replyText.length > 2000) {
+        for (let i = 0; i < replyText.length; i += 2000) {
+          await message.channel.send(replyText.slice(i, i + 2000));
+        }
+      } else {
+        await message.reply(replyText);
+      }
 
     } catch (err) {
       console.error("HF API Error:", err);
@@ -143,7 +202,7 @@ async function startBot() {
 
 
 // ==============================
-// STOP BOT FUNCTION
+// STOP BOT
 // ==============================
 async function stopBot() {
   if (!botRunning || !client) return;
@@ -178,7 +237,7 @@ app.get('/api/heartbeat', (req, res) => {
 
 
 // ==============================
-// START EXPRESS SERVER
+// START EXPRESS
 // ==============================
 const PORT = process.env.PORT || 3000;
 
@@ -191,6 +250,7 @@ app.listen(PORT, () => {
 // AUTO START BOT
 // ==============================
 startBot();
+
 
 
 

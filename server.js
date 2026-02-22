@@ -182,7 +182,7 @@ async function startBot() {
             "Content-Type": "application/json"
           },
           body: JSON.stringify({
-            model: "HuggingFaceH4/zephyr-7b-beta",
+            model: "mistralai/Mistral-7B-Instruct-v0.2",
             messages: getHistory(channelId),
             max_tokens: 500,
             temperature: 0.9,
@@ -270,5 +270,6 @@ app.listen(PORT, () => {
 // AUTO START
 // ==============================
 startBot();
+
 
 

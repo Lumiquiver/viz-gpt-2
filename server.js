@@ -182,7 +182,7 @@ async function startBot() {
             "Content-Type": "application/json"
           },
           body: JSON.stringify({
-            model: "HuggingFaceH4/zephyr-7b-beta",
+            model: "tiiuae/falcon-7b-instruct",
             messages: getHistory(channelId),
             max_tokens: 500,
             temperature: 0.9,

@@ -182,7 +182,7 @@ async function startBot() {
             "Content-Type": "application/json"
           },
           body: JSON.stringify({
-            model: "tiiuae/falcon-7b-instruct",
+            model: "Qwen/Qwen2.5-7B-Instruct",
             messages: getHistory(channelId),
             max_tokens: 500,
             temperature: 0.9,
